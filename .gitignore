@@ -17,6 +17,10 @@ local.properties
 # Large model files — host on Hugging Face, not git
 *.gguf
 
+# Release signing — never commit
+*.jks
+keystore.properties
+
 # Kotlin compiler cache
 /.kotlin
 

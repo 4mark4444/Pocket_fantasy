@@ -1,7 +1,14 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+}
+
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -11,12 +18,24 @@ android {
     // Pin the NDK version already installed on this machine.
     ndkVersion = "25.1.8937393"
 
+    signingConfigs {
+        create("release") {
+            val storeFileName = keystoreProps.getProperty("storeFile")
+            if (storeFileName != null) {
+                storeFile     = rootProject.file(storeFileName)
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias      = keystoreProps.getProperty("keyAlias")
+                keyPassword   = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.ppo"
         minSdk        = 26
         targetSdk     = 34
         versionCode   = 1
-        versionName   = "1.0"
+        versionName   = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -59,6 +78,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 

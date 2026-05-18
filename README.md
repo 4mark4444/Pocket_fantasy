@@ -2,9 +2,23 @@
 
 An Android interactive-fiction app that runs a local LLM (GGUF via llama.cpp) entirely on-device. The model streams back structured XML that the app parses into story text and player choices, giving an immersive first-person novel experience with no network calls.
 
-## Setup
+## Download (APK)
 
-The repo contains source only — the 1.2 GB language model and the llama.cpp library are fetched separately.
+If you just want to try the app on an Android phone, download the latest prebuilt APK from the [Releases page](https://github.com/4mark4444/Pocket_fantasy/releases).
+
+**Requirements**
+- Android 8.0 (API 26) or higher
+- An **arm64-v8a** device (any phone from the last ~6 years)
+- ~2.5 GB free storage (the APK itself is ~1.2 GB, plus the model is unpacked to internal storage on first launch)
+- "Install unknown apps" enabled for your browser / file manager (Settings → Apps → Special access)
+
+The model is bundled inside the APK — **no separate download or internet connection is needed.** The whole app, including the LLM, runs offline.
+
+> First launch takes 10–30 seconds while the app unpacks the bundled model from the APK into its private storage (a local disk-to-disk copy, no network). Subsequent launches are instant.
+
+## Setup (build from source)
+
+For developers who want to build the app themselves. The repo contains source only — the 1.2 GB language model and the llama.cpp library are fetched separately.
 
 ### 1. Clone this repo
 
