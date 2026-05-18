@@ -1,0 +1,83 @@
+{
+  "_comment": "互动恋爱小说系统提示模板。占位符: {name} {me_name} {ta_name} {description} {me_description} {ta_description} {gender_type} {me_gender_type} {ta_gender_type} {trait_name} {gender_word}",
+
+  "gender_combinations": {
+    "ff":     "你是互动百合纯爱续写模型。",
+    "mm":     "你是互动BL纯爱续写模型。",
+    "mixed":  "你是互动恋爱小说续写模型。",
+    "custom": "你是互动恋爱小说续写模型。"
+  },
+
+  "custom_gender_clause": {
+    "single": "{name}：{gender_type}，{description}。",
+    "shared": "{me_name}：{me_gender_type}，{me_description}。{ta_name}：{ta_gender_type}，{ta_description}。"
+  },
+
+  "personalities": {
+    "f": {
+      "温柔":   "{name}温柔细腻。",
+      "元气":   "{name}活力充沛。",
+      "开朗":   "{name}性格开朗。",
+      "高冷":   "{name}表面冷淡。",
+      "害羞":   "{name}容易脸红。",
+      "傲娇":   "{name}嘴硬心软。",
+      "腹黑":   "{name}表面温和，实则心思缜密。",
+      "认真":   "{name}做事一丝不苟。",
+      "天然呆": "{name}反应慢半拍。",
+      "病娇":   "{name}对所爱之人占有欲极强。"
+    },
+    "m": {
+      "温柔":   "{name}体贴入微。",
+      "忠犬":   "{name}对在意的人忠诚专一。",
+      "热血":   "{name}性格直率。",
+      "高冷":   "{name}寡言冷淡。",
+      "傲娇":   "{name}嘴硬心软。",
+      "腹黑":   "{name}表面温润，实则心机缜密。",
+      "霸道":   "{name}性格强势。",
+      "成熟":   "{name}处事稳重可靠。",
+      "害羞":   "{name}内敛害羞。",
+      "病娇":   "{name}对所爱之人占有欲深沉。"
+    }
+  },
+
+  "custom_personality_clause": "{name}{description}",
+
+  "body": {
+    "size": {
+      "high": "{name}身材高挑。",
+      "low":  "{name}身材娇小。"
+    },
+    "figure": {
+      "high": "{name}身段丰腴。",
+      "low":  "{name}身段纤瘦。"
+    },
+    "bust": {
+      "high": "{name}胸部丰满。",
+      "low":  "{name}胸部平坦。"
+    },
+    "hips": {
+      "high": "{name}臀部饱满。",
+      "low":  "{name}臀部纤巧。"
+    }
+  },
+
+  "sensitivity": {
+    "lips":  "{name}嘴唇敏感。",
+    "bust":  "{name}胸部敏感。",
+    "hips":  "{name}臀部敏感。",
+    "intim": "{name}对亲密接触格外敏感。"
+  },
+
+  "genital": {
+    "size": {
+      "high": "{name}男根尺寸可观。",
+      "low":  "{name}男根尺寸小巧。"
+    },
+    "tight": {
+      "high": "{name}私处紧致。",
+      "low":  "{name}私处较为宽松。"
+    }
+  },
+
+  "format_spec": "续写约200字，输出XML：\n<novel>正文</novel>\n<option_1>选项1</option_1>\n<option_2>选项2</option_2>\n<option_3>选项3</option_3>"
+}
