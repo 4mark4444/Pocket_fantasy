@@ -2,18 +2,11 @@
 
 **English** | [简体中文](README.zh.md)
 
-An Android interactive-fiction app that runs a local LLM (GGUF via llama.cpp) entirely on-device. The model streams back structured XML that the app parses into story text and player choices, giving an immersive first-person novel experience with no network calls.
-
+An Android interactive-fiction app that runs a local LLM entirely on-device which can generate NSFW content. 
 ## Screenshots
 
 <p align="center">
-  <img src="example/5291779180003_.pic.jpg" alt="Screenshot 1" width="22%" />
-  <img src="example/5301779180005_.pic.jpg" alt="Screenshot 2" width="22%" />
-  <img src="example/5311779180006_.pic.jpg" alt="Screenshot 3" width="22%" />
-  <img src="example/5321779180007_.pic.jpg" alt="Screenshot 4" width="22%" />
-</p>
-<p align="center">
-  <img src="example/5331779180008_.pic.jpg" alt="Screenshot 5" width="22%" />
+  <img src="example/generation.jpg" alt="Screenshot 1" />
 </p>
 
 ## Download (APK)
@@ -22,13 +15,9 @@ If you just want to try the app on an Android phone, download the latest prebuil
 
 **Requirements**
 - Android 8.0 (API 26) or higher
-- An **arm64-v8a** device (any phone from the last ~6 years)
-- ~2.5 GB free storage (the APK itself is ~1.2 GB, plus the model is unpacked to internal storage on first launch)
+- An **arm64-v8a** device 
+- ~2.5 GB free storage 
 - "Install unknown apps" enabled for your browser / file manager (Settings → Apps → Special access)
-
-The model is bundled inside the APK — **no separate download or internet connection is needed.** The whole app, including the LLM, runs offline.
-
-> First launch takes 10–30 seconds while the app unpacks the bundled model from the APK into its private storage (a local disk-to-disk copy, no network). Subsequent launches are instant.
 
 ## Setup (build from source)
 
@@ -84,11 +73,11 @@ Only `arm64-v8a` is built.
 
 ## References
 
-- **Coding assistant:** [Claude Code](https://claude.com/claude-code)
+- **Coding assistant:** [Claude Code](https://claude.com/claude-code) (This project is mostly vibe coded. A lot of accept accept accept, thus a lot for slop from claude. Sorry if the code is trash. )
 - **Icon:** sourced from [game-icons.net](https://game-icons.net/)
 - **Base model:** [huihui-ai/Huihui-Qwen3.5-2B-abliterated](https://huggingface.co/huihui-ai/Huihui-Qwen3.5-2B-abliterated)
 - **Dataset:** [wuliangfo/Chinese-Pixiv-Novel](https://huggingface.co/datasets/wuliangfo/Chinese-Pixiv-Novel)
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT  [LICENSE](LICENSE).
