@@ -1,6 +1,20 @@
 # Pocket Fantasy
 
+**English** | [简体中文](README.zh.md)
+
 An Android interactive-fiction app that runs a local LLM (GGUF via llama.cpp) entirely on-device. The model streams back structured XML that the app parses into story text and player choices, giving an immersive first-person novel experience with no network calls.
+
+## Screenshots
+
+<p align="center">
+  <img src="example/5291779180003_.pic.jpg" alt="Screenshot 1" width="22%" />
+  <img src="example/5301779180005_.pic.jpg" alt="Screenshot 2" width="22%" />
+  <img src="example/5311779180006_.pic.jpg" alt="Screenshot 3" width="22%" />
+  <img src="example/5321779180007_.pic.jpg" alt="Screenshot 4" width="22%" />
+</p>
+<p align="center">
+  <img src="example/5331779180008_.pic.jpg" alt="Screenshot 5" width="22%" />
+</p>
 
 ## Download (APK)
 
@@ -67,6 +81,13 @@ Required toolchain:
 ```
 
 Only `arm64-v8a` is built.
+
+## References
+
+- **Coding assistant:** [Claude Code](https://claude.com/claude-code)
+- **Icon:** sourced from [game-icons.net](https://game-icons.net/)
+- **Base model:** [huihui-ai/Huihui-Qwen3.5-2B-abliterated](https://huggingface.co/huihui-ai/Huihui-Qwen3.5-2B-abliterated)
+- **Dataset:** [wuliangfo/Chinese-Pixiv-Novel](https://huggingface.co/datasets/wuliangfo/Chinese-Pixiv-Novel)
 
 ## License
 
