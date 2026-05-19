@@ -7,7 +7,7 @@
 ## 截图展示
 
 <p align="center">
-  <img src="example/generation.jpg" alt="截图 1" />
+  <img src="example/generation.jpg" alt="截图 1"  width="40%" />
 </p>
 
 ## 下载（APK）
@@ -79,6 +79,6 @@ curl -L -o app/src/main/assets/model/test_1.gguf \
 - **基础模型：** [huihui-ai/Huihui-Qwen3.5-2B-abliterated](https://huggingface.co/huihui-ai/Huihui-Qwen3.5-2B-abliterated)
 - **数据集：** [wuliangfo/Chinese-Pixiv-Novel](https://huggingface.co/datasets/wuliangfo/Chinese-Pixiv-Novel)
 
-## 许可证
+## 
 
 MIT  [LICENSE](LICENSE)。
