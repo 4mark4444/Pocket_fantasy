@@ -6,7 +6,7 @@ An Android interactive-fiction app that runs a local LLM entirely on-device whic
 ## Screenshots
 
 <p align="center">
-  <img src="example/generation.jpg" alt="Screenshot 1" />
+  <img src="example/generation.jpg" alt="Screenshot 1" width="40%"/>
 </p>
 
 ## Download (APK)
