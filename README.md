@@ -3,11 +3,6 @@
 **English** | [简体中文](README.zh.md)
 
 An Android interactive-fiction app that runs a local LLM entirely on-device which can generate NSFW content. 
-## Screenshots
-
-<p align="center">
-  <img src="example/generation.jpg" alt="Screenshot 1" width="40%"/>
-</p>
 
 ## Download (APK)
 
