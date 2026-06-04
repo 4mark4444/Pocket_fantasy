@@ -4,12 +4,6 @@
 
 一款 Android 交互式小说应用，完全在设备本地运行的写R18内容的小模型。
 
-## 截图展示
-
-<p align="center">
-  <img src="example/generation.jpg" alt="截图 1"  width="40%" />
-</p>
-
 ## 下载（APK）
 
 如果你只想在 Android 手机上体验应用，请从 [Releases 页面](https://github.com/4mark4444/Pocket_fantasy/releases) 下载最新的预构建 APK。
