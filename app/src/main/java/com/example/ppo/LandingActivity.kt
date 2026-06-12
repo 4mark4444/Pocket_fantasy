@@ -314,8 +314,17 @@ private fun NovelCover(
             style     = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
             textAlign = TextAlign.Center,
             modifier  = Modifier
-                .align(Alignment.Center)
-                .padding(16.dp),
+                // With a cover image the bottom gradient scrim is where the
+                // title is legible; on plain color covers keep it centered.
+                .align(if (hasImage) Alignment.BottomCenter else Alignment.Center)
+                // In config mode the action row occupies the bottom edge —
+                // lift the title clear of it.
+                .padding(
+                    start  = 16.dp,
+                    end    = 16.dp,
+                    top    = 16.dp,
+                    bottom = if (hasImage && configMode) 48.dp else 16.dp,
+                ),
         )
         if (configMode) {
             Row(

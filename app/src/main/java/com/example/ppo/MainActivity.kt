@@ -25,17 +25,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,6 +50,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.Composable
@@ -61,7 +65,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ppo.ui.theme.PPOTheme
 
@@ -413,11 +416,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun spawnNextTurn(currentVm: GameViewModel, action: String) {
-        val nextBackground = if (allVMs.size == 1) {
-            "${currentVm.lastBackground}\n${currentVm.lastBeginning}\n${currentVm.lastAction}"
-        } else {
-            "${currentVm.lastBackground}\n${currentVm.lastAction}"
-        }
+        val nextBackground = trimBackground(
+            if (allVMs.size == 1) {
+                "${currentVm.lastBackground}\n${currentVm.lastBeginning}\n${currentVm.lastAction}"
+            } else {
+                "${currentVm.lastBackground}\n${currentVm.lastAction}"
+            }
+        )
         val nextBeginning = currentVm.novelText
         val frozenRecordId = currentVm.recordId
         val draftSnapshot  = currentVm.draftInput.value
@@ -440,6 +445,25 @@ class MainActivity : ComponentActivity() {
         attachDraftListener(newVm)
         allVMs.add(newVm)
         newVm.quickStart(promptProvider, nextBackground, nextBeginning, action)
+    }
+
+    /**
+     * The 【故事背景】 grows by one action line every turn and would eventually blow
+     * past the model's context window (the JNI layer hard-fails a prompt that
+     * can't fit n_ctx with generation headroom). Once over budget, keep the head
+     * (the original setting — characters, world, premise) plus the most recent
+     * tail, dropping the middle. The head stays byte-identical across turns so
+     * the native prefix cache keeps reusing system prompt + head; only the
+     * sliding tail re-prefills.
+     *
+     * Budgets are in characters; for Chinese prose on a Qwen tokenizer that's
+     * roughly 1 token per character, so 2400 chars ≈ 2400 tokens of background.
+     */
+    private fun trimBackground(bg: String): String {
+        val budget = 2400
+        val head   = 600
+        if (bg.length <= budget) return bg
+        return bg.take(head) + "\n（……前情已省略……）\n" + bg.takeLast(budget - head)
     }
 
     /**
@@ -541,14 +565,20 @@ fun NovelScreen(
                         enabled     = optionsTappable && !frozen,
                         onClick     = {},
                         onLongClick = onLongPressNovel,
-                    )
+                    ),
+                shape     = RoundedCornerShape(20.dp),
+                colors    = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor   = MaterialTheme.colorScheme.onSurface,
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             ) {
                 if (isLast && novelText.isEmpty() && isLoading) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 80.dp)
-                            .padding(12.dp),
+                            .heightIn(min = 96.dp)
+                            .padding(16.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         HeartsLoader()
@@ -556,45 +586,49 @@ fun NovelScreen(
                 } else {
                     Text(
                         text     = novelText,
-                        style    = MaterialTheme.typography.bodyMedium,
+                        style    = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(12.dp),
+                            .padding(horizontal = 20.dp, vertical = 18.dp),
                     )
                 }
             }
 
-            Column(modifier = Modifier.fillMaxWidth()) {
-                val tileDivider = MaterialTheme.colorScheme.outline
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
                 val revealed = optionsStarted.coerceAtMost(3)
                 for (i in 0 until revealed) {
-                    if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(tileDivider))
                     OptionCanvas(
+                        index      = i,
                         text       = options.getOrNull(i),
                         enabled    = optionsTappable && !frozen,
                         isSelected = selectedOptionIndex == i,
+                        dimmed     = frozen && selectedOptionIndex != i,
                         onClick    = { onOptionSelected(i) },
                     )
                 }
 
                 val showInputRow = if (frozen) selectedOptionIndex == 3 else optionsTappable
                 if (showInputRow) {
-                    Box(Modifier.fillMaxWidth().height(1.dp).background(tileDivider))
                     if (frozen) {
-                        // Submitted custom text, frozen darkened tile
-                        Box(
+                        // Submitted custom text — rendered like a selected option tile.
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(min = 64.dp)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .background(Color(0x26000000))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center,
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            OptionBadge(label = "✎", selected = true)
+                            Spacer(Modifier.width(12.dp))
                             Text(
-                                text  = selectedCustomText ?: "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                text     = selectedCustomText ?: "",
+                                style    = MaterialTheme.typography.bodyMedium,
+                                color    = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.weight(1f),
                             )
                         }
                     } else {
@@ -602,14 +636,16 @@ fun NovelScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(4.dp),
+                                .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             OutlinedTextField(
                                 value         = draftInput,
                                 onValueChange = onDraftChange,
-                                placeholder   = { Text("或者…") },
+                                placeholder   = { Text("或者，写下你想做的…") },
+                                shape         = RoundedCornerShape(12.dp),
                                 modifier      = Modifier.weight(1f),
                                 singleLine    = false,
                                 maxLines      = 3,
@@ -646,29 +682,76 @@ fun NovelScreen(
 
 @Composable
 private fun OptionCanvas(
+    index:      Int,
     text:       String?,
     enabled:    Boolean,
     isSelected: Boolean = false,
+    dimmed:     Boolean = false,
     onClick:    () -> Unit,
 ) {
-    Box(
+    // Selected → primary container highlight; past-scene unselected → faded.
+    // The old fixed-64dp tile clipped long options; this one wraps freely.
+    val container = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
+        dimmed     -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        else       -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = when {
+        isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+        dimmed     -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        else       -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .then(if (isSelected) Modifier.background(Color(0x26000000)) else Modifier)
-            .clickable(enabled = enabled) { onClick() },
-        contentAlignment = Alignment.Center,
+            .clip(RoundedCornerShape(14.dp))
+            .background(container)
+            .clickable(enabled = enabled) { onClick() }
+            .padding(horizontal = 14.dp, vertical = 14.dp)
+            .heightIn(min = 28.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        OptionBadge(label = "${index + 1}", selected = isSelected, dimmed = dimmed)
+        Spacer(Modifier.width(12.dp))
         if (!text.isNullOrBlank()) {
             Text(
                 text     = text,
-                style    = MaterialTheme.typography.bodySmall,
-                color    = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp),
+                style    = MaterialTheme.typography.bodyMedium,
+                color    = content,
+                modifier = Modifier.weight(1f),
             )
         } else {
-            OptionPulseLoader()
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                OptionPulseLoader()
+            }
         }
+    }
+}
+
+/** Small circular index marker at the head of an option tile. */
+@Composable
+private fun OptionBadge(
+    label:    String,
+    selected: Boolean,
+    dimmed:   Boolean = false,
+) {
+    val bg = when {
+        selected -> MaterialTheme.colorScheme.primary
+        dimmed   -> MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        else     -> MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+    }
+    val fg = when {
+        selected -> MaterialTheme.colorScheme.onPrimary
+        dimmed   -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+        else     -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(bg),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelSmall, color = fg)
     }
 }

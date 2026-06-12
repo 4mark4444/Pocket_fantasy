@@ -9,6 +9,7 @@
 #include <string>
 #include <unistd.h>
 #include <unordered_set>
+#include <vector>
 
 #include "chat.h"
 #include "common.h"
@@ -24,8 +25,15 @@ static constexpr int N_THREADS_MIN      = 2;
 static constexpr int N_THREADS_MAX      = 4;
 static constexpr int N_THREADS_HEADROOM = 2;
 
-static constexpr int   DEFAULT_CTX   = 4096;
+// 8192 instead of 4096: the user prompt grows every turn (accumulated 故事背景 +
+// previous scene), and a generation needs up to ~1600 tokens of headroom (novel
+// hard ceiling 1200 + three options + tags). Qwen-class 2B models use GQA, so the
+// KV cost is small — roughly 25–30 KB/token → ~230 MB at full 8192, and the cache
+// only ever holds what's actually decoded.
+static constexpr int   DEFAULT_CTX   = 8192;
 static constexpr int   BATCH_SIZE    = 512;
+// Headroom reserved for the generation itself when validating prompt length.
+static constexpr int   GEN_HEADROOM  = 1600;
 
 // ─── Global inference state ───────────────────────────────────────────────────
 static llama_model               * g_model     = nullptr;
@@ -33,6 +41,11 @@ static llama_context             * g_context   = nullptr;
 static llama_batch                 g_batch;
 static common_chat_templates_ptr   g_templates;
 static bool                        g_loaded    = false;
+
+// Every token whose decoded text starts with '<' — used by the novel-length bias
+// sampler. Precomputed once at model load; building it per-generation meant a
+// full ~150k-entry vocab scan (token_to_piece per id) before every single turn.
+static std::unordered_set<llama_token> g_lt_tokens;
 
 // Serializes nativeLoad/nativeGenerate/nativeFree so the Main thread cannot tear
 // down g_context/g_model while the IO thread is mid-llama_decode. The stop flag
@@ -120,6 +133,20 @@ Java_com_example_ppo_LlamaEngine_nativeLoad(
     // Chat templates (reads from GGUF metadata — Qwen 2.5 embeds ChatML here)
     g_templates = common_chat_templates_init(g_model, "");
 
+    // Precompute the '<'-leading token set once (used by every novel_bias sampler).
+    {
+        const llama_vocab * vocab = llama_model_get_vocab(g_model);
+        const int n_vocab = llama_vocab_n_tokens(vocab);
+        g_lt_tokens.clear();
+        for (int t = 0; t < n_vocab; t++) {
+            std::string s = common_token_to_piece(vocab, t, /*special=*/true);
+            if (!s.empty() && (unsigned char) s[0] == '<') {
+                g_lt_tokens.insert(t);
+            }
+        }
+        LOGi("precomputed %d '<'-leading tokens", (int) g_lt_tokens.size());
+    }
+
     g_loaded = true;
     LOGi("stage: model load complete");
     return JNI_TRUE;
@@ -139,7 +166,6 @@ struct novel_bias_ctx {
     int  state;             // 0 = OUTSIDE, 1 = IN_NOVEL
     int  tokens_in_novel;
     std::string text_window;
-    std::unordered_set<llama_token> lt_tokens;
     const llama_vocab * vocab;
 };
 
@@ -174,7 +200,7 @@ void novel_bias_apply(llama_sampler * smpl, llama_token_data_array * cur_p) {
     const float t    = std::min(1.0f, (float)(c->tokens_in_novel - c->soft_target) / span);
     const float bias = t * 30.0f;
     for (size_t i = 0; i < cur_p->size; i++) {
-        if (c->lt_tokens.count(cur_p->data[i].id)) {
+        if (g_lt_tokens.count(cur_p->data[i].id)) {
             cur_p->data[i].logit += bias;
         }
     }
@@ -208,17 +234,10 @@ llama_sampler * novel_bias_init(
         const llama_vocab * vocab, int soft_target, int hard_ceiling)
 {
     auto * c = new novel_bias_ctx{
-        soft_target, hard_ceiling, 0, 0, std::string(), {}, vocab
+        soft_target, hard_ceiling, 0, 0, std::string(), vocab
     };
-    const int n_vocab = llama_vocab_n_tokens(vocab);
-    for (int t = 0; t < n_vocab; t++) {
-        std::string s = common_token_to_piece(vocab, t, /*special=*/true);
-        if (!s.empty() && (unsigned char) s[0] == '<') {
-            c->lt_tokens.insert(t);
-        }
-    }
-    LOGi("novel_bias: soft=%d hard=%d, %d '<'-leading tokens precomputed",
-         soft_target, hard_ceiling, (int) c->lt_tokens.size());
+    LOGi("novel_bias: soft=%d hard=%d (%d '<'-leading tokens, precomputed at load)",
+         soft_target, hard_ceiling, (int) g_lt_tokens.size());
     return llama_sampler_init(&NOVEL_BIAS_IFACE, c);
 }
 
@@ -266,13 +285,29 @@ Java_com_example_ppo_LlamaEngine_nativeGenerate(
     }
 
     // ── Build sampler chain for this call ─────────────────────────────────────
-    // Order: temp → (grammar → novel_bias)? → dist. novel_bias sits after
-    // grammar so its bias only adds to grammar-valid tokens, and after temp so
-    // the bias is in absolute logit units.
+    // Order: (grammar → novel_bias)? → penalties → top_k → min_p → temp → dist.
+    //
+    // Pure temperature sampling (the previous chain) leaves the *entire* tail of
+    // the distribution reachable — on a 2B model that tail is where most of the
+    // incoherent "hallucinated" tokens live. top_k + min_p prune it:
+    //   - top_k(40):        never consider more than the 40 most likely tokens
+    //   - min_p(0.05):      drop tokens below 5% of the top token's probability
+    // The repetition penalty (1.05 over the last 256 generated tokens) breaks the
+    // verbatim-loop failure mode small models fall into during long narration.
+    // Kept deliberately light — heavier values degrade Chinese fluency because
+    // high-frequency characters (的/她/他) get punished. Tune 1.03–1.10 by feel.
+    //
+    // Grammar must run BEFORE the pruning samplers: if top_k/min_p ran first they
+    // could prune away every grammar-valid token at a structural position (e.g.
+    // the only legal continuation is a tag token outside the top 40), leaving the
+    // grammar with an all--inf candidate list. Same reason novel_bias precedes
+    // pruning — a +bias on a token that was already pruned does nothing, which
+    // would silently break the length ramp. The bias is now applied in raw logit
+    // units (pre-temperature); since temp later divides all logits, the effective
+    // post-temp bias is bias/temp — still a hard ramp, just slightly steeper.
     const llama_vocab * vocab = llama_model_get_vocab(g_model);
     llama_sampler_chain_params lparams = llama_sampler_chain_default_params();
     llama_sampler * sampler = llama_sampler_chain_init(lparams);
-    llama_sampler_chain_add(sampler, llama_sampler_init_temp((float) jTemp));
     if (jNovel == JNI_TRUE) {
         llama_sampler * grammar_smpl =
             llama_sampler_init_grammar(vocab, NOVEL_GRAMMAR_STR, "root");
@@ -288,6 +323,12 @@ Java_com_example_ppo_LlamaEngine_nativeGenerate(
         llama_sampler_chain_add(sampler,
             novel_bias_init(vocab, (int) jSoftTarget, (int) jHardCeiling));
     }
+    llama_sampler_chain_add(sampler, llama_sampler_init_penalties(
+        /*penalty_last_n=*/256, /*penalty_repeat=*/1.05f,
+        /*penalty_freq=*/0.0f,  /*penalty_present=*/0.0f));
+    llama_sampler_chain_add(sampler, llama_sampler_init_top_k(40));
+    llama_sampler_chain_add(sampler, llama_sampler_init_min_p(0.05f, /*min_keep=*/1));
+    llama_sampler_chain_add(sampler, llama_sampler_init_temp((float) jTemp));
     llama_sampler_chain_add(sampler, llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
     // ── Format system + user message with the model's chat template ───────────
@@ -331,6 +372,20 @@ Java_com_example_ppo_LlamaEngine_nativeGenerate(
 
     if (n_tokens == 0) {
         jstring err = env->NewStringUTF("[ERROR: tokenization produced 0 tokens]");
+        env->CallVoidMethod(jCallback, onToken, err);
+        env->DeleteLocalRef(err);
+        llama_sampler_free(sampler);
+        return;
+    }
+
+    // ── Context-window guard ──────────────────────────────────────────────────
+    // The Kotlin side trims the accumulated 故事背景 so this should never fire,
+    // but a hard check beats silently failing llama_decode mid-generation when
+    // pos crosses n_ctx.
+    if (n_tokens + GEN_HEADROOM > DEFAULT_CTX) {
+        LOGe("prompt too long: %d tokens (+%d gen headroom > n_ctx=%d)",
+             n_tokens, GEN_HEADROOM, DEFAULT_CTX);
+        jstring err = env->NewStringUTF("[ERROR: prompt too long]");
         env->CallVoidMethod(jCallback, onToken, err);
         env->DeleteLocalRef(err);
         llama_sampler_free(sampler);
@@ -466,6 +521,7 @@ Java_com_example_ppo_LlamaEngine_nativeFree(JNIEnv *, jobject) {
     std::lock_guard<std::mutex> lock(g_engine_mutex);
     if (!g_loaded) return;
     g_loaded = false;
+    g_lt_tokens.clear();
     g_templates.reset();
     llama_batch_free(g_batch);
     if (g_context)  { llama_free(g_context);            g_context  = nullptr; }
